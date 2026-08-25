@@ -6,7 +6,7 @@
 
 │  ┌──────────────────────────────────┐   │
 
-│  │    Modaami + WiFi-reititin       │   │
+│  │    Modeemi / reititin            │   │
 
 │  │      DNA Mesh WiFi F-3890        │   │
 
@@ -44,8 +44,8 @@
 
    ┌───────┴──────────┐
 
-   ├─ GitHub         ├─ Google Drive
+   ├─ GitHub          ├
 
-   ├─ School M365    ├─ LMS
+   ├─ Koulun M365     ├
 
    └──────────────────┘
