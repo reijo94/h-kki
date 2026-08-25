@@ -38,7 +38,7 @@
 - Gateway: Operaattorin modeemi
 
 **Palveluntarjoajat:**
-- Internet: [DNA]
+- Internet: DNA
 - Laitteet: Apple, Lenovo
 - Pilvi: GitHub, Apple, Microsoft
 
