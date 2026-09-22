@@ -1,0 +1,184 @@
+# BREAK & UNBREAK
+
+## Johdanto
+
+- Pääsynhallinta määrittää käyttäjän oikeudet toimintoihin ja resursseihin
+- Haavoittuvuudet syntyvät puutteellisesta suojasta: admin-oikeudet (vertikaali), muiden käyttäjien tiedot (horisontaali), väärä järjestys (konteksti)
+- Yleiset ongelmat: suojaamaton funktionaliteetti, parametreissa olevat oikeudet (admin=true), URL-epäjohdonmukaisuudet
+- Ffuf-fuzzer löytää piilotettuja hakemistoja automaattisesti sanakirjaa vastaan
+- Suojaus: oletuksena kieltäminen, yhtenäiset mekanismit, pakollinen julistaminen koodissa, perusteellinen testaus
+
+---
+
+## 010 Staff only
+
+Tehtävän ohjeiden mukaan edettyämme päästään Super Secure Password Recover sivustolle
+
+**SCREENSHOT1PNG**
+
+Jotta pääsemme tekemään SQL injektion, tulee selaimen inspektorissa muokata HTML:ää `input type="number" > "text"` muussa tapauksessa saamme vastukseksi "Please enter a number" ilmoituksen.
+
+**SCREENSHOT2**
+
+**SCREENSHOT3**
+
+Kokeillaan ensin `' OR 1=1` ja katsotaan mitä tapahtuu
+
+**SCREENSHOT 4**
+
+Jotain tapahtui, sillä saimme ISE:n, kokeillaan seuraavaksi penkoa kuinka monta riviä meillä on työstettävä, tämä järjestyy komennolla:
+
+```sql
+' UNION SELECT COUNT(*) FROM pins --
+```
+
+**SCREENSHOT 5**
+
+Saamme tiedon, että rivejä on yhteensä neljä, joten ei kun perkaamaan. Tässä toimii SQL injektio:
+
+```sql
+' OR 1=1 LIMIT X,1 --
+```
+
+Admin salasana löytyi `LIMIT 2,1` komennolla
+
+**Screenshot 6**
+
+### Korjaus
+
+Sitten lähdekoodin pariin, jossa tämän häkkäilyn meille mahdollisti `'"+pin+"'` sillä tämä myöntää komennon liittämisen.
+
+Jotta koodi saadaan turvattua, muutetaan koodia:
+
+```python
+sql = "SELECT password FROM pins WHERE pin=:pin;"
+res = db.session.execute(text(sql), {"pin": pin})
+```
+
+- **SQL-koodi:** `WHERE pin=:pin` (turvallinen runko)
+- **Data:** `{"pin": pin}` (käyttäjän syöte erillään)
+
+Käytin itse Linux micro editoria suoraan terminaalissa, tästä jäi ruutukaappaukset ottamatta PAHOITTELUT! Lienee mahdollista käyttää myös VSCodea tms.
+
+**SCREENSHOT 8**
+
+Tällä kertaa päädymme `(not found)`:iin:
+
+**Screenshot 9**
+
+Sivusto pelastettu!
+
+---
+
+## Dirfuzt-1
+
+Homma käyntiin kokeilemalla samoja komentoja kuten ohjesivun Dirfuzt-0 vaiheissa, vaihdetaan vaan nollan tilalle "1":
+
+**Screenshot 10**
+
+Avataan `http://127.0.0.2:8000` selaimessa
+
+**Screenshot 11**
+
+Sitten ffuf päälle:
+
+```bash
+ffuf -u http://127.0.0.2:8000/FUZZ -w /usr/share/wordlists/dirb/common.txt
+```
+
+**Screenshot12**
+
+Rivejä tuli taas uuden testamentin verran, 154 toistuu melko paljon joten kokeillaan rajata tällä:
+
+```bash
+ffuf -w common.txt -u http://127.0.0.2:8000/FUZZ -fs 154
+```
+
+**Screenshot13**
+
+Ja sieltä löytyikin:
+
+- `.git/HEAD`
+- `wp-admin`
+
+**Screenshot 14**
+
+**Screenshot 16**
+
+---
+
+## 020 - Your Eyes Only
+
+Jälleen homma käyntiin ohjeistuksen mukaan terminaalissa:
+
+**Screenshot 17**
+
+Ja ei muuta kun domaini auki selaimeen
+
+**Screenshot 18**
+
+Sitten taas vähän fuffaillaan, ja sieltähän löytyi `/admin-console`
+
+**Screenshot 19**
+
+Kyseinen sivu vaatii kirjautumisen, `admin / admin` tuskin toimii, mutta kokeillaan lämpimikseen!
+
+**Screenshot 20**
+
+Ja eihän se toimi
+
+**Screenshot21**
+
+Kokeillaan seuraavaksi rekisteröityä ja kirjautua, jos tämä muuttaisi sivun luonnetta.
+
+**Screenshot22**
+
+No niin, tämä ei ollut järin suojattu sivu!
+
+**Screenshot23**
+
+### Korjaus
+
+Sitten korjailemaan, kurkataan ensin hakemistoon ja siivilöidään sieltä "admin-console" joka näyttääkin, että `AdminShowAllView.as_view`
+
+**Screenshot 24**
+
+Ja varmistetaan vielä lukuoikeudet `cat hats/views.py`
+
+**Screenshot 25**
+
+Täällä bingo:
+
+```python
+class AdminShowAllView(UserPassesTestMixin, TemplateView):
+	template_name="hats/admin-show-all.html"
+
+	def test_func(self):
+		return self.request.user.is_authenticated
+```
+
+Avataan koodi `micro hats/views.py` ja lisätään sama ehto `self.request.user.is_staff`
+
+**Screenshot 26**
+
+Tallennetaan `Ctrl + S` ja käynnistetään serveri uudelleen
+
+**Screenshot 27**
+
+Testuser on iloisesti kirjautuneena, liekö pääsemme vielä admin-console osoitteeseen?
+
+**Screenshot 28**
+
+Good news, ei päästy!
+
+**Screenshot 29**
+
+---
+
+## Yhteenveto
+
+Hauska tehtävä, tuli jälleen typerä olo monessa kohtaa, joten koitin tähän tiivistää vain oleellisimmat jutskat!
+
+### Lähteet
+
+Materiaalit ja Claude auttoi oikolukemaan tämän MD tekstin sekä terminaalin kirjoitusvirheet.
